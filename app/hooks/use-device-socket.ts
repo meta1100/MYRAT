@@ -164,7 +164,7 @@ export function useDeviceSocket() {
     }
 
     setConnection("connecting");
-    const socket = io("http://localhost:3000", {
+    const socket = io("https://myrat-8foj.onrender.com", {
       autoConnect: false,
       withCredentials: true,
       transports: ["websocket"],
