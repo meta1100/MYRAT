@@ -100,7 +100,9 @@ export function useDeviceSocket() {
   const [frames, setFrames] = useState<FeatureMap<FrameSet>>({});
   const [featureRecords, setFeatureRecords] = useState<FeatureMap<Partial<Record<DeviceFeature, FeatureRecord[]>>>>({});
   const [featureStates, setFeatureStates] = useState<FeatureMap<Partial<Record<DeviceFeature, FeatureRequestResult>>>>({});
-  const url = import.meta.env.VITE_DEVICE_SOCKET_URL?.trim() ?? "";
+  
+  // env না থাকলেও Render এর URL টি ডিফল্ট হিসেবে কাজ করবে
+  const url = import.meta.env.VITE_DEVICE_SOCKET_URL?.trim() || "https://myrat-8foj.onrender.com";
 
   function clearFrames() {
     if (frameTimerRef.current) clearTimeout(frameTimerRef.current);
@@ -164,14 +166,14 @@ export function useDeviceSocket() {
     }
 
     setConnection("connecting");
-    const socket = io("https://myrat-8foj.onrender.com", {
+    const socket = io(url, {
       autoConnect: false,
       withCredentials: true,
-      transports: ["websocket"],
+      transports: ["polling", "websocket"], // Render-এর জন্য polling + websocket দুটোই যোগ করা হলো
       reconnection: true,
-      reconnectionDelay: 500,
+      reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 8000,
+      timeout: 30000, // Render cold start এর জন্য সময় বাড়িয়ে ৩০ সেকেন্ড করা হলো
       auth: { protocol: "device-console.v1" },
     });
     socketRef.current = socket;
