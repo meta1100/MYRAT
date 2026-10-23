@@ -1,4 +1,5 @@
 import { useEffect, useState, type ComponentType } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { signOut } from "@agent-native/core/client";
 import {
   IconActivity,
@@ -66,6 +67,12 @@ const features: FeatureDefinition[] = [
 ];
 
 const previewTabs: PreviewTab[] = ["Live screen", "Live camera", "Gallery & files"];
+const BACKEND_SOCKET_URL = "https://myrat-8foj.onrender.com";
+
+function createPairingSessionId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 export function meta() {
   return [
@@ -75,7 +82,8 @@ export function meta() {
 }
 
 export default function HomeRoute() {
-  const socket = useDeviceSocket();
+  const [pairingSessionId] = useState(createPairingSessionId);
+  const socket = useDeviceSocket(pairingSessionId);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [activeTab, setActiveTab] = useState<PreviewTab>("Live screen");
   const [selectedFeature, setSelectedFeature] = useState<DeviceFeature | null>(null);
@@ -143,6 +151,14 @@ export default function HomeRoute() {
     ? socket.featureStates[selectedDevice.id]?.[selectedFeature] ?? panelState
     : panelState;
 
+  if (!socket.paired) {
+    return <PairingScreen
+      sessionId={pairingSessionId}
+      websocketUrl={BACKEND_SOCKET_URL}
+      connection={socket.connection}
+    />;
+  }
+
   return (
     <main className="console-shell">
       <aside className="sidebar">
@@ -209,6 +225,24 @@ export default function HomeRoute() {
       </section>
     </main>
   );
+}
+
+function PairingScreen({ sessionId, websocketUrl, connection }: { sessionId: string; websocketUrl: string; connection: string }) {
+  const payload = JSON.stringify({ sessionId, websocketUrl });
+  const connectionLabel = connection === "connected" ? "Waiting for Android device" : connection === "connecting" || connection === "reconnecting" ? "Connecting to pairing server" : "Pairing server unavailable";
+
+  return <main className="pairing-shell">
+    <section className="pairing-panel" aria-labelledby="pairing-title">
+      <div className="pairing-kicker"><span className="pairing-kicker-mark" /> SECURE DEVICE PAIRING</div>
+      <div className="pairing-copy">
+        <h1 id="pairing-title">Bring one device into the room.</h1>
+        <p>Scan this code from the authorized Android app to establish a live management session.</p>
+      </div>
+      <div className="pairing-code-frame"><QRCodeSVG value={payload} size={248} level="M" includeMargin /></div>
+      <div className="pairing-status" role="status"><span className={`pairing-status-dot ${connection}`} /><strong>{connectionLabel}</strong><span>Session {sessionId.slice(0, 8)}</span></div>
+      <div className="pairing-footer"><span>Socket endpoint</span><code>{websocketUrl}</code></div>
+    </section>
+  </main>;
 }
 
 function GalleryPanel({ items, selectedDevice, onOpenFeature }: { items: GalleryItem[]; selectedDevice: Device | null; onOpenFeature: () => void }) {

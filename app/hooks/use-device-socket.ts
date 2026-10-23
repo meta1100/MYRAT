@@ -79,6 +79,11 @@ const FeatureStateSchema = FeatureAckSchema.extend({
   feature: z.enum(deviceFeatures),
 });
 
+const PairSuccessSchema = z.object({
+  sessionId: z.string().optional(),
+  deviceId: z.string().optional(),
+}).passthrough();
+
 export type Device = z.infer<typeof DeviceSchema>;
 export type GalleryItem = z.infer<typeof GalleryItemSchema>;
 export type DeviceActivity = z.infer<typeof ActivitySchema>;
@@ -87,7 +92,7 @@ export type FeatureRequestResult = z.infer<typeof FeatureAckSchema> | { status: 
 type FeatureMap<T> = Record<string, T>;
 type FrameSet = { screen: string | null; camera: string | null };
 
-export function useDeviceSocket() {
+export function useDeviceSocket(pairingSessionId: string) {
   const socketRef = useRef<Socket | null>(null);
   const frameUrlsRef = useRef(new Map<string, string>());
   const lastFrameAtRef = useRef(0);
@@ -100,6 +105,7 @@ export function useDeviceSocket() {
   const [frames, setFrames] = useState<FeatureMap<FrameSet>>({});
   const [featureRecords, setFeatureRecords] = useState<FeatureMap<Partial<Record<DeviceFeature, FeatureRecord[]>>>>({});
   const [featureStates, setFeatureStates] = useState<FeatureMap<Partial<Record<DeviceFeature, FeatureRequestResult>>>>({});
+  const [paired, setPaired] = useState(false);
   
   const url = import.meta.env.VITE_DEVICE_SOCKET_URL?.trim();
 
@@ -182,6 +188,7 @@ export function useDeviceSocket() {
 
     socket.on("connect", () => {
       setConnection("connected");
+      socket.emit("device:v1:pair:listen", { sessionId: pairingSessionId });
       socket.emit("device:v1:inventory:request");
     });
     socket.on("disconnect", () => {
@@ -190,6 +197,13 @@ export function useDeviceSocket() {
     });
     socket.on("connect_error", () => setConnection("reconnecting"));
     socket.io.on("reconnect_attempt", () => setConnection("reconnecting"));
+    socket.on("device:v1:pair:success", (payload: unknown) => {
+      const parsed = PairSuccessSchema.safeParse(payload);
+      if (parsed.success && (!parsed.data.sessionId || parsed.data.sessionId === pairingSessionId)) {
+        setPaired(true);
+        socket.emit("device:v1:inventory:request");
+      }
+    });
     
     socket.on("device:v1:inventory:snapshot", (payload: unknown) => {
       const parsed = z.array(DeviceSchema).max(100).safeParse(payload);
@@ -249,7 +263,7 @@ export function useDeviceSocket() {
       frameUrlsRef.current.clear();
       socketRef.current = null;
     };
-  }, [url]);
+  }, [pairingSessionId, url]);
 
   const requestFeature = useCallback((deviceId: string, feature: DeviceFeature): Promise<FeatureRequestResult> => {
     const socket = socketRef.current;
@@ -277,5 +291,5 @@ export function useDeviceSocket() {
     socket.emit("device:v1:feature:stop", { protocol: "device-console.v1", deviceId, feature });
   }, []);
 
-  return { connection, devices, gallery, activities, frames, featureRecords, featureStates, requestFeature, stopFeature };
+  return { connection, paired, devices, gallery, activities, frames, featureRecords, featureStates, requestFeature, stopFeature };
 }
