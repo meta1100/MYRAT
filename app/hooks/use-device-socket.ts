@@ -101,8 +101,7 @@ export function useDeviceSocket() {
   const [featureRecords, setFeatureRecords] = useState<FeatureMap<Partial<Record<DeviceFeature, FeatureRecord[]>>>>({});
   const [featureStates, setFeatureStates] = useState<FeatureMap<Partial<Record<DeviceFeature, FeatureRequestResult>>>>({});
   
-  // সরাসরি রেন্ডার লিংক ফলব্যাক হিসেবে দিয়ে দেওয়া হলো যাতে এনভায়রনমেন্ট মিসিং থাকলেও কাজ করে
-  const url = import.meta.env.VITE_DEVICE_SOCKET_URL?.trim() || "https://myrat-8foj.onrender.com";
+  const url = import.meta.env.VITE_DEVICE_SOCKET_URL?.trim();
 
   function clearFrames() {
     if (frameTimerRef.current) clearTimeout(frameTimerRef.current);
